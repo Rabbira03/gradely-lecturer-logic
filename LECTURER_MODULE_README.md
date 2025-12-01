@@ -343,6 +343,4 @@ For questions about the logic layer:
 - Review JSDoc comments in each file for detailed documentation
 - Test with mock data before backend integration
 
----
-
 **Created by Group 2 - Lecturer Module Team**
