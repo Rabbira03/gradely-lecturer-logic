@@ -5,9 +5,8 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import * as lecturerApi from '../services/lecturerApi.js';
-import { validateLecturerData, validateStudentMarks, validateBulkMarksEntry } from '../utils/validation.js';
-import { calculateGradingResult, calculateClassStatistics } from '../utils/grading.js';
+import lecturerApi from '../services/lecturerApi.js';
+import { calculateClassStatistics } from '../utils/grading.js';
 
 /**
  * Hook for lecturer authentication
@@ -15,53 +14,32 @@ import { calculateGradingResult, calculateClassStatistics } from '../utils/gradi
  */
 export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [lecturer, setLecturer] = useState(null);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Check if user is authenticated on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = lecturerApi.getAuthToken();
-      if (token) {
-        try {
-          const isValid = await lecturerApi.validateToken();
-          setIsAuthenticated(isValid);
-          if (!isValid) {
-            lecturerApi.removeAuthToken();
-          }
-        } catch (err) {
-          setIsAuthenticated(false);
-          lecturerApi.removeAuthToken();
-        }
-      }
-      setLoading(false);
-    };
-
-    checkAuth();
+    const token = lecturerApi.getAuthToken();
+    const storedUser = localStorage.getItem('lecturer_user');
+    if (token && storedUser) {
+      setIsAuthenticated(true);
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
-  /**
-   * Login lecturer
-   * @param {string} email - Email address
-   * @param {string} password - Password
-   * @returns {Promise<boolean>} Success status
-   */
   const login = useCallback(async (email, password) => {
     setLoading(true);
     setError(null);
-    
     try {
-      const response = await lecturerApi.loginLecturer(email, password);
-      
+      const response = await lecturerApi.loginLecturer({ email, password });
       if (response.success) {
         setIsAuthenticated(true);
-        setLecturer(response.lecturer);
+        setUser(response.data.user);
         return true;
-      } else {
-        setError(response.error || 'Login failed');
-        return false;
       }
+      setError('Login failed');
+      return false;
     } catch (err) {
       setError(err.message || 'Login failed');
       return false;
@@ -70,41 +48,17 @@ export const useAuth = () => {
     }
   }, []);
 
-  /**
-   * Logout lecturer
-   */
-  const logout = useCallback(async () => {
-    setLoading(true);
-    
-    try {
-      await lecturerApi.logoutLecturer();
-    } catch (err) {
-      console.error('Logout error:', err);
-    } finally {
-      setIsAuthenticated(false);
-      setLecturer(null);
-      setLoading(false);
-    }
+  const logout = useCallback(() => {
+    lecturerApi.logoutLecturer();
+    setIsAuthenticated(false);
+    setUser(null);
   }, []);
 
-  /**
-   * Register new lecturer
-   * @param {Object} lecturerData - Lecturer data
-   * @returns {Promise<Object>} Registration result
-   */
-  const register = useCallback(async (lecturerData) => {
+  const register = useCallback(async (data) => {
     setLoading(true);
     setError(null);
-
-    const validation = validateLecturerData(lecturerData);
-    if (!validation.isValid) {
-      setError(validation.errors.join(', '));
-      setLoading(false);
-      return { success: false, errors: validation.errors };
-    }
-
     try {
-      const response = await lecturerApi.registerLecturer(lecturerData);
+      const response = await lecturerApi.registerLecturer(data);
       return { success: true, data: response };
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -114,269 +68,102 @@ export const useAuth = () => {
     }
   }, []);
 
-  return {
-    isAuthenticated,
-    lecturer,
-    loading,
-    error,
-    login,
-    logout,
-    register,
-  };
+  return { isAuthenticated, user, loading, error, login, logout, register };
 };
 
 /**
- * Hook for managing students
- * @param {string} lecturerId - Lecturer's ID
- * @returns {Object} Students state and methods
+ * Hook for managing offerings and students
+ * @returns {Object} State and methods
  */
-export const useStudents = (lecturerId) => {
+export const useLecturerData = () => {
+  const [offerings, setOfferings] = useState([]);
   const [students, setStudents] = useState([]);
+  const [selectedOfferingId, setSelectedOfferingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Fetch students for lecturer
-   */
-  const fetchStudents = useCallback(async () => {
-    if (!lecturerId) return;
-
+  const fetchOfferings = useCallback(async () => {
     setLoading(true);
-    setError(null);
-
     try {
-      const data = await lecturerApi.fetchStudentsByLecturer(lecturerId);
-      setStudents(data);
+      const data = await lecturerApi.fetchLecturerOfferings();
+      setOfferings(data || []);
     } catch (err) {
-      setError(err.message || 'Failed to fetch students');
-    } finally {
-      setLoading(false);
-    }
-  }, [lecturerId]);
-
-  /**
-   * Fetch single student details
-   * @param {string} studentId - Student's ID
-   * @returns {Promise<Object|null>} Student data
-   */
-  const fetchStudent = useCallback(async (studentId) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await lecturerApi.fetchStudentDetails(studentId);
-      return data;
-    } catch (err) {
-      setError(err.message || 'Failed to fetch student');
-      return null;
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Auto-fetch students when lecturerId changes
-  useEffect(() => {
-    fetchStudents();
-  }, [fetchStudents]);
+  const fetchStudents = useCallback(async (offeringId) => {
+    if (!offeringId) return;
+    setLoading(true);
+    setSelectedOfferingId(offeringId);
+    try {
+      const data = await lecturerApi.fetchStudentsByOffering(offeringId);
+      setStudents(data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   return {
+    offerings,
     students,
+    selectedOfferingId,
     loading,
     error,
+    fetchOfferings,
     fetchStudents,
-    fetchStudent,
   };
 };
 
 /**
- * Hook for managing student marks
+ * Hook for managing marks
  * @returns {Object} Marks state and methods
  */
 export const useMarks = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /**
-   * Enter marks for a student
-   * @param {Object} marksData - Marks data
-   * @returns {Promise<Object>} Result with calculated grade
-   */
-  const enterMarks = useCallback(async (marksData) => {
+  const submitMarks = useCallback(async (marksData) => {
     setLoading(true);
     setError(null);
-
-    const validation = validateStudentMarks(marksData);
-    if (!validation.isValid) {
-      setError(validation.errors.join(', '));
-      setLoading(false);
-      return { success: false, errors: validation.errors };
-    }
-
     try {
-      const response = await lecturerApi.enterStudentMarks(marksData);
-      const gradingResult = calculateGradingResult(marksData);
-      
-      return {
-        success: true,
-        data: response,
-        ...gradingResult,
-      };
-    } catch (err) {
-      setError(err.message || 'Failed to enter marks');
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Update existing marks
-   * @param {string} marksId - Marks record ID
-   * @param {Object} marksData - Updated marks data
-   * @returns {Promise<Object>} Result with calculated grade
-   */
-  const updateMarks = useCallback(async (marksId, marksData) => {
-    setLoading(true);
-    setError(null);
-
-    const validation = validateStudentMarks(marksData);
-    if (!validation.isValid) {
-      setError(validation.errors.join(', '));
-      setLoading(false);
-      return { success: false, errors: validation.errors };
-    }
-
-    try {
-      const response = await lecturerApi.updateStudentMarks(marksId, marksData);
-      const gradingResult = calculateGradingResult(marksData);
-      
-      return {
-        success: true,
-        data: response,
-        ...gradingResult,
-      };
-    } catch (err) {
-      setError(err.message || 'Failed to update marks');
-      return { success: false, error: err.message };
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /**
-   * Bulk enter marks for multiple students
-   * @param {string[]} studentIds - Array of student IDs
-   * @param {string} assessmentType - Assessment type
-   * @param {number} marks - Marks value
-   * @returns {Promise<Object>} Result
-   */
-  const bulkEnter = useCallback(async (studentIds, assessmentType, marks) => {
-    setLoading(true);
-    setError(null);
-
-    const validation = validateBulkMarksEntry(studentIds, assessmentType, marks);
-    if (!validation.isValid) {
-      setError(validation.errors.join(', '));
-      setLoading(false);
-      return { success: false, errors: validation.errors };
-    }
-
-    try {
-      const response = await lecturerApi.bulkEnterMarks(studentIds, assessmentType, marks);
+      // marksData should be array of { assessmentId, studentId, score, offeringId }
+      const response = await lecturerApi.submitMarksBatch(marksData);
       return { success: true, data: response };
     } catch (err) {
-      setError(err.message || 'Failed to bulk enter marks');
+      setError(err.message);
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /**
-   * Fetch marks for a student
-   * @param {string} studentId - Student's ID
-   * @returns {Promise<Object|null>} Marks data with grading
-   */
-  const fetchMarks = useCallback(async (studentId) => {
-    setLoading(true);
-    setError(null);
-
+  const exportCsv = useCallback(async (offeringId) => {
     try {
-      const data = await lecturerApi.fetchStudentMarks(studentId);
-      const gradingResult = calculateGradingResult(data);
-      
-      return {
-        ...data,
-        ...gradingResult,
-      };
+      const csv = await lecturerApi.exportMarksCsv(offeringId);
+      // Trigger download
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `marks_offering_${offeringId}.csv`;
+      a.click();
+      return true;
     } catch (err) {
-      setError(err.message || 'Failed to fetch marks');
-      return null;
-    } finally {
-      setLoading(false);
+      setError(err.message);
+      return false;
     }
   }, []);
 
-  return {
-    loading,
-    error,
-    enterMarks,
-    updateMarks,
-    bulkEnter,
-    fetchMarks,
-  };
-};
-
-/**
- * Hook for class statistics and reporting
- * @param {string} lecturerId - Lecturer's ID
- * @returns {Object} Statistics state and methods
- */
-export const useClassStatistics = (lecturerId) => {
-  const [statistics, setStatistics] = useState(null);
-  const [studentsWithMarks, setStudentsWithMarks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  /**
-   * Fetch students with marks and calculate statistics
-   */
-  const fetchStatistics = useCallback(async () => {
-    if (!lecturerId) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await lecturerApi.fetchStudentsWithMarks(lecturerId);
-      setStudentsWithMarks(data);
-      
-      const stats = calculateClassStatistics(data.map(s => s.marks));
-      setStatistics(stats);
-    } catch (err) {
-      setError(err.message || 'Failed to fetch statistics');
-    } finally {
-      setLoading(false);
-    }
-  }, [lecturerId]);
-
-  // Auto-fetch statistics when lecturerId changes
-  useEffect(() => {
-    fetchStatistics();
-  }, [fetchStatistics]);
-
-  return {
-    statistics,
-    studentsWithMarks,
-    loading,
-    error,
-    fetchStatistics,
-  };
+  return { loading, error, submitMarks, exportCsv };
 };
 
 export default {
   useAuth,
-  useStudents,
+  useLecturerData,
   useMarks,
-  useClassStatistics,
 };

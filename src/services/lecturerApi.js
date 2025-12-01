@@ -4,33 +4,28 @@
  * @module lecturerApi
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.example.com';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3000';
 
 /**
- * @typedef {Object} LecturerData
- * @property {string} name - Lecturer's full name
- * @property {string} email - Lecturer's email address
- * @property {string} phone - Lecturer's phone number
- * @property {string} password - Lecturer's password
- * @property {string} courseId - ID of the course the lecturer teaches
+ * @typedef {Object} LoginCredentials
+ * @property {string} email - User email
+ * @property {string} password - User password
  */
 
 /**
- * @typedef {Object} AuthResponse
- * @property {boolean} success - Whether authentication was successful
- * @property {string} token - Authentication token
- * @property {Object} lecturer - Lecturer data
- * @property {string} [error] - Error message if failed
+ * @typedef {Object} RegisterData
+ * @property {string} email - User email
+ * @property {string} password - User password
+ * @property {string} fullName - User full name
+ * @property {string} staffNo - Lecturer staff number
  */
 
 /**
- * @typedef {Object} StudentMarks
- * @property {string} studentId - Student's ID
- * @property {number} assignment - Assignment marks (/10)
- * @property {number} quiz - Quiz marks (/15)
- * @property {number} project - Project marks (/25)
- * @property {number} midsem - Midsem marks (/20)
- * @property {number} finalExam - Final exam marks (/30)
+ * @typedef {Object} MarkEntry
+ * @property {string} assessmentId - ID of the assessment (e.g. assignment ID)
+ * @property {string} studentId - ID of the student
+ * @property {number} score - Score obtained
+ * @property {string} offeringId - ID of the course offering
  */
 
 /**
@@ -44,16 +39,19 @@ const getAuthToken = () => {
 /**
  * Set authentication token in localStorage
  * @param {string} token - Authentication token
+ * @param {Object} user - User data
  */
-const setAuthToken = (token) => {
+const setAuthSession = (token, user) => {
   localStorage.setItem('lecturer_auth_token', token);
+  localStorage.setItem('lecturer_user', JSON.stringify(user));
 };
 
 /**
  * Remove authentication token from localStorage
  */
-const removeAuthToken = () => {
+const clearAuthSession = () => {
   localStorage.removeItem('lecturer_auth_token');
+  localStorage.removeItem('lecturer_user');
 };
 
 /**
@@ -65,7 +63,7 @@ const removeAuthToken = () => {
  */
 const authenticatedFetch = async (endpoint, options = {}) => {
   const token = getAuthToken();
-  
+
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -87,42 +85,32 @@ const authenticatedFetch = async (endpoint, options = {}) => {
 
 /**
  * Register a new lecturer
- * @param {LecturerData} lecturerData - Lecturer registration data
+ * @param {RegisterData} data - Registration data
  * @returns {Promise<Object>} Registration response
  */
-export const registerLecturer = async (lecturerData) => {
-  return authenticatedFetch('/lecturers/register', {
+export const registerLecturer = async (data) => {
+  return authenticatedFetch('/auth/register', {
     method: 'POST',
-    body: JSON.stringify(lecturerData),
-  });
-};
-
-/**
- * Register multiple lecturers in bulk
- * @param {LecturerData[]} lecturersData - Array of lecturer data
- * @returns {Promise<Object>} Bulk registration response
- */
-export const registerBulkLecturers = async (lecturersData) => {
-  return authenticatedFetch('/lecturers/register/bulk', {
-    method: 'POST',
-    body: JSON.stringify({ lecturers: lecturersData }),
+    body: JSON.stringify({
+      ...data,
+      role: 'lecturer', // Enforce lecturer role
+    }),
   });
 };
 
 /**
  * Login lecturer
- * @param {string} email - Lecturer's email
- * @param {string} password - Lecturer's password
- * @returns {Promise<AuthResponse>} Authentication response
+ * @param {LoginCredentials} credentials - Login credentials
+ * @returns {Promise<Object>} Authentication response
  */
-export const loginLecturer = async (email, password) => {
-  const response = await authenticatedFetch('/lecturers/login', {
+export const loginLecturer = async ({ email, password }) => {
+  const response = await authenticatedFetch('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
 
-  if (response.success && response.token) {
-    setAuthToken(response.token);
+  if (response.success && response.data?.token) {
+    setAuthSession(response.data.token, response.data.user);
   }
 
   return response;
@@ -130,152 +118,66 @@ export const loginLecturer = async (email, password) => {
 
 /**
  * Logout lecturer
- * @returns {Promise<void>}
  */
-export const logoutLecturer = async () => {
-  try {
-    await authenticatedFetch('/lecturers/logout', {
-      method: 'POST',
-    });
-  } finally {
-    removeAuthToken();
-  }
+export const logoutLecturer = () => {
+  clearAuthSession();
+  // No backend logout endpoint specified in docs, so we just clear local session
+  return Promise.resolve({ success: true });
 };
 
 /**
- * Validate authentication token
- * @returns {Promise<boolean>} Whether token is valid
+ * Get offerings (courses) taught by the lecturer
+ * @returns {Promise<Object[]>} List of offerings
  */
-export const validateToken = async () => {
-  try {
-    const response = await authenticatedFetch('/lecturers/validate-token');
-    return response.valid === true;
-  } catch (error) {
-    removeAuthToken();
-    return false;
-  }
+export const fetchLecturerOfferings = async () => {
+  return authenticatedFetch('/lecturer/offerings');
 };
 
 /**
- * Refresh authentication token
- * @returns {Promise<string>} New authentication token
+ * Get students enrolled in a specific offering
+ * @param {string} offeringId - ID of the offering
+ * @returns {Promise<Object[]>} List of students
  */
-export const refreshToken = async () => {
-  const response = await authenticatedFetch('/lecturers/refresh-token', {
+export const fetchStudentsByOffering = async (offeringId) => {
+  return authenticatedFetch(`/lecturer/offerings/${offeringId}/students`);
+};
+
+/**
+ * Submit marks (batch)
+ * @param {MarkEntry[]} marks - Array of mark entries
+ * @returns {Promise<Object>} Response
+ */
+export const submitMarksBatch = async (marks) => {
+  return authenticatedFetch('/lecturer/marks/batch', {
     method: 'POST',
-  });
-
-  if (response.token) {
-    setAuthToken(response.token);
-  }
-
-  return response.token;
-};
-
-/**
- * Fetch all students registered under lecturer's unit
- * @param {string} lecturerId - Lecturer's ID
- * @returns {Promise<Object[]>} Array of students
- */
-export const fetchStudentsByLecturer = async (lecturerId) => {
-  return authenticatedFetch(`/lecturers/${lecturerId}/students`);
-};
-
-/**
- * Fetch specific student details
- * @param {string} studentId - Student's ID
- * @returns {Promise<Object>} Student details
- */
-export const fetchStudentDetails = async (studentId) => {
-  return authenticatedFetch(`/students/${studentId}`);
-};
-
-/**
- * Fetch student marks
- * @param {string} studentId - Student's ID
- * @returns {Promise<Object>} Student marks data
- */
-export const fetchStudentMarks = async (studentId) => {
-  return authenticatedFetch(`/students/${studentId}/marks`);
-};
-
-/**
- * Enter marks for a student
- * @param {StudentMarks} marksData - Marks data
- * @returns {Promise<Object>} Response with saved marks
- */
-export const enterStudentMarks = async (marksData) => {
-  return authenticatedFetch('/marks/enter', {
-    method: 'POST',
-    body: JSON.stringify(marksData),
+    body: JSON.stringify(marks),
   });
 };
 
 /**
- * Update existing marks for a student
- * @param {string} marksId - Marks record ID
- * @param {StudentMarks} marksData - Updated marks data
- * @returns {Promise<Object>} Response with updated marks
+ * Export marks to CSV
+ * @param {string} offeringId - ID of the offering
+ * @returns {Promise<string>} CSV content (or blob url)
  */
-export const updateStudentMarks = async (marksId, marksData) => {
-  return authenticatedFetch(`/marks/${marksId}`, {
-    method: 'PUT',
-    body: JSON.stringify(marksData),
+export const exportMarksCsv = async (offeringId) => {
+  const token = getAuthToken();
+  const response = await fetch(`${API_BASE_URL}/lecturer/offerings/${offeringId}/marks/export?format=csv`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
   });
-};
-
-/**
- * Bulk entry - apply same assessment mark to multiple students
- * @param {string[]} studentIds - Array of student IDs
- * @param {string} assessmentType - Type of assessment (assignment, quiz, project, midsem, finalExam)
- * @param {number} marks - Marks to apply
- * @returns {Promise<Object>} Bulk update response
- */
-export const bulkEnterMarks = async (studentIds, assessmentType, marks) => {
-  return authenticatedFetch('/marks/bulk-enter', {
-    method: 'POST',
-    body: JSON.stringify({
-      studentIds,
-      assessmentType,
-      marks,
-    }),
-  });
-};
-
-/**
- * Fetch all students with their marks for a lecturer
- * @param {string} lecturerId - Lecturer's ID
- * @returns {Promise<Object[]>} Array of students with marks
- */
-export const fetchStudentsWithMarks = async (lecturerId) => {
-  return authenticatedFetch(`/lecturers/${lecturerId}/students-with-marks`);
-};
-
-/**
- * Calculate class statistics for a lecturer
- * @param {string} lecturerId - Lecturer's ID
- * @returns {Promise<Object>} Statistics (average, highest, lowest, passRate)
- */
-export const fetchClassStatistics = async (lecturerId) => {
-  return authenticatedFetch(`/lecturers/${lecturerId}/statistics`);
+  return response.text();
 };
 
 export default {
   getAuthToken,
-  setAuthToken,
-  removeAuthToken,
+  setAuthSession,
+  clearAuthSession,
   registerLecturer,
-  registerBulkLecturers,
   loginLecturer,
   logoutLecturer,
-  validateToken,
-  refreshToken,
-  fetchStudentsByLecturer,
-  fetchStudentDetails,
-  fetchStudentMarks,
-  enterStudentMarks,
-  updateStudentMarks,
-  bulkEnterMarks,
-  fetchStudentsWithMarks,
-  fetchClassStatistics,
+  fetchLecturerOfferings,
+  fetchStudentsByOffering,
+  submitMarksBatch,
+  exportMarksCsv,
 };
