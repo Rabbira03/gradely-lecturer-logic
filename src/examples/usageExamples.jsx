@@ -60,6 +60,9 @@ export const LoginExample = () => {
                 {loading ? 'Logging in...' : 'Login'}
             </button>
             {error && <div className="text-red-500 text-sm">{error}</div>}
+            <div className="text-center text-sm">
+                Don't have an account? <a href="/register" className="text-blue-600 hover:underline">Register here</a>
+            </div>
         </form>
     );
 };
