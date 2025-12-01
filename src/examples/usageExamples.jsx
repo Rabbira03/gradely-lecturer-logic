@@ -5,8 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useAuth, useStudents, useMarks, useClassStatistics } from '../hooks/useLecturer.js';
-import { downloadCSV, generateAndPrintReport } from '../utils/printing.js';
+import { useAuth, useLecturerData, useMarks } from '../hooks/useLecturer.js';
 
 /**
  * Example 1: Login Component
@@ -23,64 +22,106 @@ export const LoginExample = () => {
 
         if (success) {
             console.log('Login successful!');
-            // Redirect to dashboard or show success message
         }
     };
 
     if (isAuthenticated) {
-        return <div>Already logged in!</div>;
+        return <div className="p-4 text-green-600 font-bold">Login Successful!</div>;
     }
 
     return (
-        <form onSubmit={handleLogin}>
-            <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                required
-            />
-            <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-            />
-            <button type="submit" disabled={loading}>
+        <form onSubmit={handleLogin} className="space-y-4 max-w-sm mx-auto p-4 border rounded">
+            <h3 className="text-lg font-bold">Lecturer Login</h3>
+            <div>
+                <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Email"
+                    required
+                    className="w-full p-2 border rounded"
+                />
+            </div>
+            <div>
+                <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Password"
+                    required
+                    className="w-full p-2 border rounded"
+                />
+            </div>
+            <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
                 {loading ? 'Logging in...' : 'Login'}
             </button>
-            {error && <div style={{ color: 'red' }}>{error}</div>}
+            {error && <div className="text-red-500 text-sm">{error}</div>}
         </form>
     );
 };
 
 /**
- * Example 2: Student List Component
- * Shows how to fetch and display students
+ * Example 2: Student List Component (with Offering Selection)
+ * Shows how to fetch offerings and then students
  */
-export const StudentListExample = ({ lecturerId }) => {
-    const { students, loading, error, fetchStudents } = useStudents(lecturerId);
+export const StudentListExample = () => {
+    const {
+        offerings,
+        students,
+        selectedOfferingId,
+        loading,
+        error,
+        fetchOfferings,
+        fetchStudents
+    } = useLecturerData();
 
-    if (loading) {
-        return <div>Loading students...</div>;
-    }
-
-    if (error) {
-        return <div style={{ color: 'red' }}>Error: {error}</div>;
-    }
+    useEffect(() => {
+        fetchOfferings();
+    }, [fetchOfferings]);
 
     return (
-        <div>
-            <h2>My Students ({students.length})</h2>
-            <button onClick={fetchStudents}>Refresh</button>
-            <ul>
-                {students.map((student) => (
-                    <li key={student.id}>
-                        {student.name} - {student.email}
-                    </li>
-                ))}
-            </ul>
+        <div className="space-y-6">
+            <div className="bg-gray-50 p-4 rounded">
+                <h3 className="font-bold mb-2">1. Select a Course Offering</h3>
+                {offerings.length === 0 && !loading && <p>No offerings found.</p>}
+
+                <select
+                    className="w-full p-2 border rounded"
+                    onChange={(e) => fetchStudents(e.target.value)}
+                    value={selectedOfferingId || ''}
+                >
+                    <option value="">-- Select Course --</option>
+                    {offerings.map((offering) => (
+                        <option key={offering.id} value={offering.id}>
+                            {offering.courseCode || offering.id} - {offering.term} {offering.year}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            {selectedOfferingId && (
+                <div>
+                    <h3 className="font-bold mb-2">2. Enrolled Students ({students.length})</h3>
+                    {loading && <p>Loading students...</p>}
+                    {error && <p className="text-red-500">{error}</p>}
+
+                    <ul className="divide-y border rounded">
+                        {students.map((student) => (
+                            <li key={student.id} className="p-3 hover:bg-gray-50">
+                                <span className="font-medium">{student.fullName || student.name}</span>
+                                <span className="text-gray-500 text-sm ml-2">({student.regNo || student.id})</span>
+                            </li>
+                        ))}
+                        {students.length === 0 && !loading && (
+                            <li className="p-3 text-gray-500">No students enrolled.</li>
+                        )}
+                    </ul>
+                </div>
+            )}
         </div>
     );
 };
@@ -89,241 +130,109 @@ export const StudentListExample = ({ lecturerId }) => {
  * Example 3: Marks Entry Form
  * Shows how to enter marks for a student
  */
-export const MarksEntryExample = ({ studentId }) => {
-    const { enterMarks, loading, error } = useMarks();
-    const [marks, setMarks] = useState({
-        studentId: studentId,
-        assignment: 0,
-        quiz: 0,
-        project: 0,
-        midsem: 0,
-        finalExam: 0,
-    });
+export const MarksEntryExample = () => {
+    const { offerings, students, fetchOfferings, fetchStudents } = useLecturerData();
+    const { submitMarks, loading: submitting, error: submitError } = useMarks();
+
+    const [selectedOffering, setSelectedOffering] = useState('');
+    const [selectedStudent, setSelectedStudent] = useState('');
+    const [score, setScore] = useState(0);
+    const [assessmentId, setAssessmentId] = useState('assignment1'); // Mock assessment ID
+
+    useEffect(() => {
+        fetchOfferings();
+    }, [fetchOfferings]);
+
+    const handleOfferingChange = (e) => {
+        const offId = e.target.value;
+        setSelectedOffering(offId);
+        fetchStudents(offId);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const result = await enterMarks(marks);
+        if (!selectedOffering || !selectedStudent) return;
+
+        const result = await submitMarks([{
+            offeringId: selectedOffering,
+            studentId: selectedStudent,
+            assessmentId: assessmentId,
+            score: parseFloat(score)
+        }]);
 
         if (result.success) {
-            console.log('Marks entered successfully!');
-            console.log('Total:', result.total);
-            console.log('Grade:', result.grade);
-            console.log('Passed:', result.passed);
-            // Show success message with grade
+            alert('Marks submitted successfully!');
+            setScore(0);
+        } else {
+            alert('Failed: ' + result.error);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit}>
-            <h3>Enter Marks</h3>
+        <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
+            <h3 className="font-bold text-lg">Enter Marks</h3>
 
-            <label>
-                Assignment (/10):
-                <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={marks.assignment}
-                    onChange={(e) => setMarks({ ...marks, assignment: parseFloat(e.target.value) })}
-                />
-            </label>
-
-            <label>
-                Quiz (/15):
-                <input
-                    type="number"
-                    min="0"
-                    max="15"
-                    step="0.5"
-                    value={marks.quiz}
-                    onChange={(e) => setMarks({ ...marks, quiz: parseFloat(e.target.value) })}
-                />
-            </label>
-
-            <label>
-                Project (/25):
-                <input
-                    type="number"
-                    min="0"
-                    max="25"
-                    step="0.5"
-                    value={marks.project}
-                    onChange={(e) => setMarks({ ...marks, project: parseFloat(e.target.value) })}
-                />
-            </label>
-
-            <label>
-                Midsem (/20):
-                <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    value={marks.midsem}
-                    onChange={(e) => setMarks({ ...marks, midsem: parseFloat(e.target.value) })}
-                />
-            </label>
-
-            <label>
-                Final Exam (/30):
-                <input
-                    type="number"
-                    min="0"
-                    max="30"
-                    step="0.5"
-                    value={marks.finalExam}
-                    onChange={(e) => setMarks({ ...marks, finalExam: parseFloat(e.target.value) })}
-                />
-            </label>
-
-            <button type="submit" disabled={loading}>
-                {loading ? 'Submitting...' : 'Submit Marks'}
-            </button>
-
-            {error && <div style={{ color: 'red' }}>{error}</div>}
-        </form>
-    );
-};
-
-/**
- * Example 4: Bulk Marks Entry
- * Shows how to enter same marks for multiple students
- */
-export const BulkMarksEntryExample = ({ selectedStudentIds }) => {
-    const { bulkEnter, loading, error } = useMarks();
-    const [assessmentType, setAssessmentType] = useState('assignment');
-    const [marks, setMarks] = useState(0);
-
-    const handleBulkEntry = async (e) => {
-        e.preventDefault();
-        const result = await bulkEnter(selectedStudentIds, assessmentType, marks);
-
-        if (result.success) {
-            console.log('Bulk marks entered successfully!');
-            // Show success message
-        }
-    };
-
-    return (
-        <form onSubmit={handleBulkEntry}>
-            <h3>Bulk Marks Entry ({selectedStudentIds.length} students)</h3>
-
-            <label>
-                Assessment Type:
-                <select value={assessmentType} onChange={(e) => setAssessmentType(e.target.value)}>
-                    <option value="assignment">Assignment (/10)</option>
-                    <option value="quiz">Quiz (/15)</option>
-                    <option value="project">Project (/25)</option>
-                    <option value="midsem">Midsem (/20)</option>
-                    <option value="finalExam">Final Exam (/30)</option>
+            <div>
+                <label className="block text-sm font-medium">Course</label>
+                <select
+                    className="w-full p-2 border rounded"
+                    value={selectedOffering}
+                    onChange={handleOfferingChange}
+                    required
+                >
+                    <option value="">Select Course</option>
+                    {offerings.map(o => (
+                        <option key={o.id} value={o.id}>{o.courseCode || o.id}</option>
+                    ))}
                 </select>
-            </label>
+            </div>
 
-            <label>
-                Marks:
+            <div>
+                <label className="block text-sm font-medium">Student</label>
+                <select
+                    className="w-full p-2 border rounded"
+                    value={selectedStudent}
+                    onChange={(e) => setSelectedStudent(e.target.value)}
+                    required
+                    disabled={!selectedOffering}
+                >
+                    <option value="">Select Student</option>
+                    {students.map(s => (
+                        <option key={s.id} value={s.id}>{s.fullName || s.name}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div>
+                <label className="block text-sm font-medium">Score</label>
                 <input
                     type="number"
-                    min="0"
-                    step="0.5"
-                    value={marks}
-                    onChange={(e) => setMarks(parseFloat(e.target.value))}
+                    value={score}
+                    onChange={(e) => setScore(e.target.value)}
+                    className="w-full p-2 border rounded"
+                    required
                 />
-            </label>
+            </div>
 
-            <button type="submit" disabled={loading || selectedStudentIds.length === 0}>
-                {loading ? 'Applying...' : 'Apply to All Selected'}
+            <button
+                type="submit"
+                disabled={submitting || !selectedStudent}
+                className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700 disabled:opacity-50"
+            >
+                {submitting ? 'Submitting...' : 'Submit Grade'}
             </button>
 
-            {error && <div style={{ color: 'red' }}>{error}</div>}
+            {submitError && <p className="text-red-500">{submitError}</p>}
         </form>
-    );
-};
-
-/**
- * Example 5: Class Statistics Dashboard
- * Shows how to display statistics and export data
- */
-export const StatisticsDashboardExample = ({ lecturerId }) => {
-    const { statistics, studentsWithMarks, loading, error } = useClassStatistics(lecturerId);
-
-    const handleExportCSV = () => {
-        downloadCSV(studentsWithMarks, 'class_marks.csv');
-    };
-
-    const handlePrintReport = () => {
-        generateAndPrintReport(studentsWithMarks, {
-            title: 'Class Marks Report',
-            lecturerName: 'Dr. John Doe',
-            courseName: 'Software Engineering',
-            statistics: statistics,
-        });
-    };
-
-    if (loading) {
-        return <div>Loading statistics...</div>;
-    }
-
-    if (error) {
-        return <div style={{ color: 'red' }}>Error: {error}</div>;
-    }
-
-    if (!statistics) {
-        return <div>No data available</div>;
-    }
-
-    return (
-        <div>
-            <h2>Class Statistics</h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
-                <div>
-                    <h4>Average Score</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.average}%</p>
-                </div>
-
-                <div>
-                    <h4>Highest Score</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.highest}%</p>
-                </div>
-
-                <div>
-                    <h4>Lowest Score</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.lowest}%</p>
-                </div>
-
-                <div>
-                    <h4>Pass Rate</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.passRate}%</p>
-                </div>
-
-                <div>
-                    <h4>Passed Students</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.passedStudents}</p>
-                </div>
-
-                <div>
-                    <h4>Failed Students</h4>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold' }}>{statistics.failedStudents}</p>
-                </div>
-            </div>
-
-            <div style={{ marginTop: '20px' }}>
-                <button onClick={handleExportCSV}>Export to CSV</button>
-                <button onClick={handlePrintReport} style={{ marginLeft: '10px' }}>
-                    Print Report
-                </button>
-            </div>
-        </div>
     );
 };
 
 /**
  * Example 6: Complete Dashboard Integration
- * Shows how to display statistics and export data
+ * Shows how all pieces work together
  */
 export const CompleteDashboardExample = () => {
-    const { isAuthenticated, lecturer, logout } = useAuth();
+    const { isAuthenticated, user, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('students');
 
     if (!isAuthenticated) {
@@ -331,89 +240,46 @@ export const CompleteDashboardExample = () => {
     }
 
     return (
-        <div>
-            <header>
-                <h1>Lecturer Dashboard</h1>
-                <p>Welcome, {lecturer?.name}!</p>
-                <button onClick={logout}>Logout</button>
+        <div className="space-y-6">
+            <header className="flex justify-between items-center border-b pb-4">
+                <div>
+                    <h1 className="text-2xl font-bold">Lecturer Dashboard</h1>
+                    <p className="text-gray-600">Welcome, {user?.fullName || user?.email}!</p>
+                </div>
+                <button
+                    onClick={logout}
+                    className="bg-red-100 text-red-600 px-4 py-2 rounded hover:bg-red-200"
+                >
+                    Logout
+                </button>
             </header>
 
-            <nav>
-                <button onClick={() => setActiveTab('students')}>Students</button>
-                <button onClick={() => setActiveTab('marks')}>Enter Marks</button>
-                <button onClick={() => setActiveTab('statistics')}>Statistics</button>
+            <nav className="flex space-x-4">
+                <button
+                    onClick={() => setActiveTab('students')}
+                    className={`px-4 py-2 rounded ${activeTab === 'students' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                >
+                    Students
+                </button>
+                <button
+                    onClick={() => setActiveTab('marks')}
+                    className={`px-4 py-2 rounded ${activeTab === 'marks' ? 'bg-blue-600 text-white' : 'bg-gray-100'}`}
+                >
+                    Enter Marks
+                </button>
             </nav>
 
-            <main>
-                {activeTab === 'students' && (
-                    <StudentListExample lecturerId={lecturer?.id} />
-                )}
-
-                {activeTab === 'marks' && (
-                    <div>
-                        <MarksEntryExample studentId="student-123" />
-                        <BulkMarksEntryExample selectedStudentIds={['student-1', 'student-2']} />
-                    </div>
-                )}
-
-                {activeTab === 'statistics' && (
-                    <StatisticsDashboardExample lecturerId={lecturer?.id} />
-                )}
+            <main className="bg-white p-6 rounded shadow-sm border">
+                {activeTab === 'students' && <StudentListExample />}
+                {activeTab === 'marks' && <MarksEntryExample />}
             </main>
         </div>
     );
 };
 
-/**
- * INSTRUCTIONS FOR GROUP 4 (Frontend Developers)
- * 
- * 1. AUTHENTICATION:
- *    - Use useAuth() hook for login/logout/registration
- *    - Check isAuthenticated to show/hide protected content
- *    - See LoginExample for implementation
- * 
- * 2. STUDENTS:
- *    - Use useStudents(lecturerId) to fetch students
- *    - Students auto-load when component mounts
- *    - Call fetchStudents() to refresh manually
- *    - See StudentListExample for implementation
- * 
- * 3. MARKS ENTRY:
- *    - Use useMarks() for all marks operations
- *    - Call enterMarks() with complete marks object
- *    - Call updateMarks() with marksId and updated data
- *    - Call bulkEnter() for same marks to multiple students
- *    - Results include calculated total, grade, and pass status
- *    - See MarksEntryExample and BulkMarksEntryExample
- * 
- * 4. STATISTICS & REPORTING:
- *    - Use useClassStatistics(lecturerId) for stats
- *    - Statistics auto-load when component mounts
- *    - Use downloadCSV() from printing.js to export
- *    - Use generateAndPrintReport() to print HTML reports
- *    - See StatisticsDashboardExample for implementation
- * 
- * 5. ERROR HANDLING:
- *    - All hooks return loading and error states
- *    - Display error messages to users
- *    - Show loading indicators during operations
- * 
- * 6. API CONFIGURATION:
- *    - Set REACT_APP_API_BASE_URL in .env file
- *    - Group 5 will provide the actual API endpoints
- *    - All API calls are handled automatically by hooks
- * 
- * 7. VALIDATION:
- *    - Validation happens automatically in hooks
- *    - Validation errors returned in error state
- *    - You can also use validation.js directly for form validation
- */
-
 export default {
     LoginExample,
     StudentListExample,
     MarksEntryExample,
-    BulkMarksEntryExample,
-    StatisticsDashboardExample,
     CompleteDashboardExample,
 };
