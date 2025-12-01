@@ -1,4 +1,4 @@
-import { CompleteDashboardExample } from "../examples/usageExamples";
+import { CompleteDashboardExample } from "../examples/usageExamples.jsx";
 
 const Index = () => {
   return (
