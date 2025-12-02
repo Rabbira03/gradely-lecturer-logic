@@ -1,8 +1,9 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
 
 // Load environment variables
 const __filename = fileURLToPath(import.meta.url);
@@ -10,8 +11,6 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const logFile = path.resolve(__dirname, '../seed_debug.log');
-
-// Clear previous log
 fs.writeFileSync(logFile, '');
 
 function log(message) {
@@ -30,77 +29,115 @@ if (!uri) {
 
 const client = new MongoClient(uri);
 
-const courses = [
-    {
-        courseCode: 'SWE4070',
-        title: 'Software Engineering II',
-        term: 'Semester 1',
-        year: '2025',
-        description: 'Advanced software engineering concepts.',
-        credits: 3,
-        department: 'Software Engineering'
-    },
-    {
-        courseCode: 'SWE4080',
-        title: 'Software Testing',
-        term: 'Semester 1',
-        year: '2025',
-        description: 'Principles and practices of software testing.',
-        credits: 3,
-        department: 'Software Engineering'
-    },
-    {
-        courseCode: 'CSC3020',
-        title: 'Database Systems',
-        term: 'Semester 1',
-        year: '2025',
-        description: 'Design and implementation of database systems.',
-        credits: 3,
-        department: 'Computer Science'
-    },
-    {
-        courseCode: 'CSC3050',
-        title: 'Algorithms',
-        term: 'Semester 1',
-        year: '2025',
-        description: 'Analysis and design of algorithms.',
-        credits: 3,
-        department: 'Computer Science'
-    },
-    {
-        courseCode: 'SWE4090',
-        title: 'Project Management',
-        term: 'Semester 1',
-        year: '2025',
-        description: 'Software project management techniques.',
-        credits: 3,
-        department: 'Software Engineering'
-    }
-];
-
 async function run() {
     try {
         log('Starting seed script...');
-        // Log masked URI for debugging
-        const maskedUri = uri.replace(/:([^:@]+)@/, ':****@');
-        log(`Connecting to MongoDB at ${maskedUri}...`);
-
         await client.connect();
         log('Connected to MongoDB');
 
         const db = client.db();
-        const collection = db.collection('offerings');
 
-        log('Inserting courses...');
-        const result = await collection.insertMany(courses);
-        log(`${result.insertedCount} courses inserted successfully.`);
+        // Clear existing collections
+        await db.collection('users').deleteMany({});
+        await db.collection('courses').deleteMany({});
+        await db.collection('courseofferings').deleteMany({});
+        await db.collection('gradescales').deleteMany({});
+        await db.collection('enrollments').deleteMany({});
+        await db.collection('marks').deleteMany({});
+        log('Cleared existing data');
+
+        // 1. Grade Scales
+        const gradeScales = [
+            { letter: 'A', minPercent: 80, maxPercent: 100, points: 4.0 },
+            { letter: 'B', minPercent: 70, maxPercent: 79, points: 3.0 },
+            { letter: 'C', minPercent: 60, maxPercent: 69, points: 2.0 },
+            { letter: 'D', minPercent: 50, maxPercent: 59, points: 1.0 },
+            { letter: 'E', minPercent: 0, maxPercent: 49, points: 0.0 }
+        ];
+        await db.collection('gradescales').insertMany(gradeScales);
+        log('Grade scales created');
+
+        // 2. Users
+        const passwordHash = await bcrypt.hash('password123', 10);
+
+        const lecturer = {
+            _id: new ObjectId(),
+            email: 'lecturer@example.com',
+            passwordHash: passwordHash,
+            fullName: 'Dr. John Smith',
+            role: 'lecturer',
+            staffNo: 'LEC001',
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        const student = {
+            _id: new ObjectId(),
+            email: 'student@example.com',
+            passwordHash: passwordHash,
+            fullName: 'Jane Doe',
+            role: 'student',
+            regNo: 'REG001',
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        await db.collection('users').insertMany([lecturer, student]);
+        log('Users created');
+
+        // 3. Courses
+        const courses = [
+            { _id: new ObjectId(), code: 'SWE4070', name: 'Software Engineering II', credits: 3 },
+            { _id: new ObjectId(), code: 'SWE4080', name: 'Software Testing', credits: 3 },
+            { _id: new ObjectId(), code: 'CSC3020', name: 'Database Systems', credits: 3 },
+            { _id: new ObjectId(), code: 'CSC3050', name: 'Algorithms', credits: 3 },
+            { _id: new ObjectId(), code: 'SWE4090', name: 'Project Management', credits: 3 }
+        ];
+
+        await db.collection('courses').insertMany(courses);
+        log('Courses created');
+
+        // 4. Course Offerings
+        const term = '2025S1';
+        const year = 2025;
+
+        const offerings = courses.map(course => ({
+            _id: new ObjectId(),
+            courseId: course._id,
+            term,
+            year,
+            capacity: 50,
+            assignedLecturerIds: [lecturer._id],
+            assessments: [
+                { _id: new ObjectId(), name: 'Assignment', weight: 20, maxScore: 20 },
+                { _id: new ObjectId(), name: 'CAT', weight: 30, maxScore: 30 },
+                { _id: new ObjectId(), name: 'Exam', weight: 50, maxScore: 50 }
+            ],
+            createdAt: new Date(),
+            updatedAt: new Date()
+        }));
+
+        await db.collection('courseofferings').insertMany(offerings);
+        log('Course offerings created');
+
+        // 5. Enrollments
+        const enrollments = offerings.map(offering => ({
+            studentId: student._id,
+            offeringId: offering._id,
+            chosenLecturerId: lecturer._id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        }));
+
+        await db.collection('enrollments').insertMany(enrollments);
+        log('Enrollments created');
 
     } catch (err) {
-        log(`Error seeding courses: ${err.message}`);
+        log(`Error seeding: ${err.message}`);
         log(err.stack);
     } finally {
         await client.close();
-        log('Connection closed.');
+        log('Connection closed');
     }
 }
 
