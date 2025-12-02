@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useLecturerData } from '@/hooks/useLecturer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,14 +25,15 @@ const StudentList = () => {
                     <CardTitle>1. Select a Course Offering</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {offerings.length === 0 && !loading && <p>No offerings found.</p>}
+                    {error && <p className="text-red-500 mb-4">{error}</p>}
+                    {offerings.length === 0 && !loading && !error && <p>No offerings found.</p>}
 
                     <Select onValueChange={fetchStudents} value={selectedOfferingId || ''}>
                         <SelectTrigger className="w-full">
                             <SelectValue placeholder="-- Select Course --" />
                         </SelectTrigger>
                         <SelectContent>
-                            {offerings.map((offering) => (
+                            {offerings.map((offering: any) => (
                                 <SelectItem key={offering.id} value={offering.id}>
                                     {offering.courseCode} - {offering.title} ({offering.term} {offering.year})
                                 </SelectItem>
@@ -52,7 +53,7 @@ const StudentList = () => {
                         {error && <p className="text-red-500">{error}</p>}
 
                         <div className="border rounded-md divide-y">
-                            {students.map((student) => (
+                            {students.map((student: any) => (
                                 <div key={student.id} className="p-3 hover:bg-gray-50 flex justify-between items-center">
                                     <div>
                                         <span className="font-medium block">{student.fullName || student.name}</span>

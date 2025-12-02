@@ -164,11 +164,24 @@ const authenticate = (req, res, next) => {
 // Get Offerings
 app.get('/lecturer/offerings', authenticate, async (req, res) => {
     try {
+        console.log('--- DEBUG: Fetching Offerings ---');
+        console.log('Lecturer ID from Token:', req.user._id);
+
+        // Debug: Find ALL offerings to see what's in DB
+        const allOfferings = await CourseOffering.find({});
+        console.log('Total Offerings in DB:', allOfferings.length);
+        if (allOfferings.length > 0) {
+            console.log('Sample Offering assigned IDs:', allOfferings[0].assignedLecturerIds);
+            console.log('Type of first assigned ID:', typeof allOfferings[0].assignedLecturerIds[0]);
+        }
+
         const offerings = await CourseOffering.find({
             assignedLecturerIds: req.user._id
         })
             .populate('courseId')
             .populate('assignedLecturerIds', 'fullName staffNo');
+
+        console.log('Offerings Found for Lecturer:', offerings.length);
 
         const formattedOfferings = offerings.map(offering => ({
             id: offering._id,
@@ -188,14 +201,35 @@ app.get('/lecturer/offerings', authenticate, async (req, res) => {
 });
 
 // Get Students for Offering
+// Get Students for Offering
 app.get('/lecturer/offerings/:id/students', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`--- DEBUG: Fetching Students for Offering ID: ${id} ---`);
+
+        // Debug: Check if offering exists
+        const offering = await CourseOffering.findById(id);
+        console.log('Offering found:', !!offering);
+
+        // Debug: Check all enrollments for this offering
+        const allEnrollments = await Enrollment.find({ offeringId: id });
+        console.log('Total Enrollments for this offering:', allEnrollments.length);
+
         const enrollments = await Enrollment.find({ offeringId: id })
             .populate('studentId', 'fullName regNo email')
             .populate('chosenLecturerId', 'fullName staffNo');
 
-        const formattedStudents = enrollments.map(enrollment => ({
+        console.log('Populated Enrollments:', enrollments.length);
+
+        // Filter out orphaned enrollments (where studentId is null)
+        const validEnrollments = enrollments.filter(e => e.studentId);
+        console.log('Valid Enrollments (with Student data):', validEnrollments.length);
+
+        if (validEnrollments.length > 0) {
+            console.log('First Student:', validEnrollments[0].studentId);
+        }
+
+        const formattedStudents = validEnrollments.map(enrollment => ({
             id: enrollment.studentId._id,
             name: enrollment.studentId.fullName,
             regNo: enrollment.studentId.regNo,
