@@ -20,12 +20,15 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 app.use(cors());
 app.use(express.json());
 
+<<<<<<< HEAD
 // Request Logging
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
 });
 
+=======
+>>>>>>> parent of c810ed9 (lecturer module)
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('Connected to MongoDB (Online)'))
