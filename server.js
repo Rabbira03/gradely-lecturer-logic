@@ -20,19 +20,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 app.use(cors());
 app.use(express.json());
 
-// Request Logging Middleware
+// Request Logging
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    console.log('Body:', req.body);
     next();
 });
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
-    .then(() => console.log('Connected to MongoDB'))
+    .then(() => console.log('Connected to MongoDB (Online)'))
     .catch(err => console.error('MongoDB connection error:', err));
 
-// --- Schemas matching the backend repo ---
+// --- Schemas ---
 
 const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },

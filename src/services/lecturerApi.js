@@ -9,28 +9,6 @@ console.log('Lecturer API Service Initialized');
 console.log('Using API Base URL:', API_BASE_URL);
 
 /**
- * @typedef {Object} LoginCredentials
- * @property {string} email - User email
- * @property {string} password - User password
- */
-
-/**
- * @typedef {Object} RegisterData
- * @property {string} email - User email
- * @property {string} password - User password
- * @property {string} fullName - User full name
- * @property {string} staffNo - Lecturer staff number
- */
-
-/**
- * @typedef {Object} MarkEntry
- * @property {string} assessmentId - ID of the assessment (e.g. assignment ID)
- * @property {string} studentId - ID of the student
- * @property {number} score - Score obtained
- * @property {string} offeringId - ID of the course offering
- */
-
-/**
  * Get authentication token from localStorage
  * @returns {string|null} Authentication token
  */
@@ -87,7 +65,7 @@ const authenticatedFetch = async (endpoint, options = {}) => {
 
 /**
  * Register a new lecturer
- * @param {RegisterData} data - Registration data
+ * @param {Object} data - Registration data
  * @returns {Promise<Object>} Registration response
  */
 export const registerLecturer = async (data) => {
@@ -102,7 +80,7 @@ export const registerLecturer = async (data) => {
 
 /**
  * Login lecturer
- * @param {LoginCredentials} credentials - Login credentials
+ * @param {Object} credentials - Login credentials
  * @returns {Promise<Object>} Authentication response
  */
 export const loginLecturer = async ({ email, password }) => {
@@ -123,7 +101,6 @@ export const loginLecturer = async ({ email, password }) => {
  */
 export const logoutLecturer = () => {
   clearAuthSession();
-  // No backend logout endpoint specified in docs, so we just clear local session
   return Promise.resolve({ success: true });
 };
 
@@ -146,7 +123,7 @@ export const fetchStudentsByOffering = async (offeringId) => {
 
 /**
  * Submit marks (batch)
- * @param {MarkEntry[]} marks - Array of mark entries
+ * @param {Array} marks - Array of mark entries
  * @returns {Promise<Object>} Response
  */
 export const submitMarksBatch = async (marks) => {
@@ -159,7 +136,7 @@ export const submitMarksBatch = async (marks) => {
 /**
  * Export marks to CSV
  * @param {string} offeringId - ID of the offering
- * @returns {Promise<string>} CSV content (or blob url)
+ * @returns {Promise<string>} CSV content
  */
 export const exportMarksCsv = async (offeringId) => {
   const token = getAuthToken();
