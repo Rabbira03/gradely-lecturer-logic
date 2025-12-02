@@ -5,6 +5,8 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+console.log('Lecturer API Service Initialized');
+console.log('Using API Base URL:', API_BASE_URL);
 
 /**
  * @typedef {Object} LoginCredentials

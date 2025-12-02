@@ -20,6 +20,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default_secret';
 app.use(cors());
 app.use(express.json());
 
+// Request Logging Middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log('Body:', req.body);
+    next();
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URL)
     .then(() => console.log('Connected to MongoDB'))
