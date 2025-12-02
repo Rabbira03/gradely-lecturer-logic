@@ -62,22 +62,35 @@ const courseOfferingSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const enrollmentSchema = new mongoose.Schema({
-    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true }, // Changed to ref 'Student'
     offeringId: { type: mongoose.Schema.Types.ObjectId, ref: 'CourseOffering', required: true },
-    chosenLecturerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
+    chosenLecturerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Made optional
+    marks: { type: Number, default: null }, // Added to match data
+    enrolledAt: { type: Date } // Added to match data
 }, { timestamps: true });
 
 const markSchema = new mongoose.Schema({
     assessmentId: { type: mongoose.Schema.Types.ObjectId, required: true },
     offeringId: { type: mongoose.Schema.Types.ObjectId, ref: 'CourseOffering', required: true },
-    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true }, // Changed to ref 'Student'
     lecturerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     score: { type: Number, required: true, min: 0 }
 }, { timestamps: true });
 
 markSchema.index({ assessmentId: 1, studentId: 1 }, { unique: true });
 
+const studentSchema = new mongoose.Schema({
+    firstName: String,
+    lastName: String,
+    schoolID: Number,
+    email: String,
+    major: String,
+    currentYear: String
+});
+
 const User = mongoose.model('User', userSchema);
+// Define Student model to map to 'students' collection
+const Student = mongoose.model('Student', studentSchema);
 const Course = mongoose.model('Course', courseSchema);
 const CourseOffering = mongoose.model('CourseOffering', courseOfferingSchema);
 const Enrollment = mongoose.model('Enrollment', enrollmentSchema);
@@ -164,24 +177,11 @@ const authenticate = (req, res, next) => {
 // Get Offerings
 app.get('/lecturer/offerings', authenticate, async (req, res) => {
     try {
-        console.log('--- DEBUG: Fetching Offerings ---');
-        console.log('Lecturer ID from Token:', req.user._id);
-
-        // Debug: Find ALL offerings to see what's in DB
-        const allOfferings = await CourseOffering.find({});
-        console.log('Total Offerings in DB:', allOfferings.length);
-        if (allOfferings.length > 0) {
-            console.log('Sample Offering assigned IDs:', allOfferings[0].assignedLecturerIds);
-            console.log('Type of first assigned ID:', typeof allOfferings[0].assignedLecturerIds[0]);
-        }
-
         const offerings = await CourseOffering.find({
             assignedLecturerIds: req.user._id
         })
             .populate('courseId')
             .populate('assignedLecturerIds', 'fullName staffNo');
-
-        console.log('Offerings Found for Lecturer:', offerings.length);
 
         const formattedOfferings = offerings.map(offering => ({
             id: offering._id,
@@ -200,39 +200,36 @@ app.get('/lecturer/offerings', authenticate, async (req, res) => {
     }
 });
 
-// Get Students for Offering
+
 // Get Students for Offering
 app.get('/lecturer/offerings/:id/students', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        console.log(`--- DEBUG: Fetching Students for Offering ID: ${id} ---`);
 
-        // Debug: Check if offering exists
+        // 1. Get the Offering to find its Course ID
         const offering = await CourseOffering.findById(id);
-        console.log('Offering found:', !!offering);
+        if (!offering) {
+            return res.status(404).json({ success: false, message: 'Offering not found' });
+        }
 
-        // Debug: Check all enrollments for this offering
-        const allEnrollments = await Enrollment.find({ offeringId: id });
-        console.log('Total Enrollments for this offering:', allEnrollments.length);
-
-        const enrollments = await Enrollment.find({ offeringId: id })
-            .populate('studentId', 'fullName regNo email')
+        // 2. Query Enrollments matching EITHER the Offering ID OR the Course ID
+        // (This fixes the issue where enrollments were linked to the Course instead of the Offering)
+        const enrollments = await Enrollment.find({
+            $or: [
+                { offeringId: id },
+                { offeringId: offering.courseId }
+            ]
+        })
+            .populate('studentId')
             .populate('chosenLecturerId', 'fullName staffNo');
-
-        console.log('Populated Enrollments:', enrollments.length);
 
         // Filter out orphaned enrollments (where studentId is null)
         const validEnrollments = enrollments.filter(e => e.studentId);
-        console.log('Valid Enrollments (with Student data):', validEnrollments.length);
-
-        if (validEnrollments.length > 0) {
-            console.log('First Student:', validEnrollments[0].studentId);
-        }
 
         const formattedStudents = validEnrollments.map(enrollment => ({
             id: enrollment.studentId._id,
-            name: enrollment.studentId.fullName,
-            regNo: enrollment.studentId.regNo,
+            name: `${enrollment.studentId.firstName} ${enrollment.studentId.lastName}`,
+            regNo: enrollment.studentId.schoolID,
             email: enrollment.studentId.email
         }));
 
