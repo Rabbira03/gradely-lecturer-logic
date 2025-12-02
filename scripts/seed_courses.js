@@ -2,16 +2,29 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Load environment variables
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
+const logFile = path.resolve(__dirname, '../seed_debug.log');
+
+// Clear previous log
+fs.writeFileSync(logFile, '');
+
+function log(message) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `${timestamp}: ${message}\n`;
+    console.log(message);
+    fs.appendFileSync(logFile, logMessage);
+}
+
 const uri = process.env.MONGO_URL;
 
 if (!uri) {
-    console.error('Error: MONGO_URL not found in .env file');
+    log('Error: MONGO_URL not found in .env file');
     process.exit(1);
 }
 
@@ -67,22 +80,27 @@ const courses = [
 
 async function run() {
     try {
+        log('Starting seed script...');
+        // Log masked URI for debugging
+        const maskedUri = uri.replace(/:([^:@]+)@/, ':****@');
+        log(`Connecting to MongoDB at ${maskedUri}...`);
+
         await client.connect();
-        console.log('Connected to MongoDB');
+        log('Connected to MongoDB');
 
-        const db = client.db(); // Uses the database from the connection string
-        const collection = db.collection('offerings'); // Assuming 'offerings' is the collection name based on API endpoints
+        const db = client.db();
+        const collection = db.collection('offerings');
 
-        // Check if courses already exist to avoid duplicates (optional, but good practice)
-        // For simplicity, we'll just insert them.
-
+        log('Inserting courses...');
         const result = await collection.insertMany(courses);
-        console.log(`${result.insertedCount} courses inserted successfully.`);
+        log(`${result.insertedCount} courses inserted successfully.`);
 
     } catch (err) {
-        console.error('Error seeding courses:', err);
+        log(`Error seeding courses: ${err.message}`);
+        log(err.stack);
     } finally {
         await client.close();
+        log('Connection closed.');
     }
 }
 
