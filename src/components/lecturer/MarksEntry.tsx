@@ -47,7 +47,7 @@ const MarksEntry = () => {
     }, [selectedStudent, assessmentId, existingMarks]);
 
     // Find the selected offering object to get its assessments
-    const currentOffering = offerings.find(o => o.id === selectedOffering);
+    const currentOffering = offerings.find((o: any) => o.id === selectedOffering);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -93,7 +93,7 @@ const MarksEntry = () => {
                                 <SelectValue placeholder="Select Course" />
                             </SelectTrigger>
                             <SelectContent>
-                                {offerings.map(o => (
+                                {offerings.map((o: any) => (
                                     <SelectItem key={o.id} value={o.id}>
                                         {o.courseCode} - {o.title}
                                     </SelectItem>
@@ -113,7 +113,7 @@ const MarksEntry = () => {
                                 <SelectValue placeholder="Select Student" />
                             </SelectTrigger>
                             <SelectContent>
-                                {students.map(s => (
+                                {students.map((s: any) => (
                                     <SelectItem key={s.id} value={s.id}>
                                         {s.fullName || s.name} ({s.regNo})
                                     </SelectItem>

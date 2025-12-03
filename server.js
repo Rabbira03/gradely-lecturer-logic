@@ -97,21 +97,36 @@ const Enrollment = mongoose.model('Enrollment', enrollmentSchema);
 const Mark = mongoose.model('Mark', markSchema);
 
 const gradeScaleSchema = new mongoose.Schema({
-    grade: { type: String, required: true },
-    minScore: { type: Number, required: true },
-    maxScore: { type: Number, required: true },
-    gpa: { type: Number, required: true }
+    letter: { type: String, required: true },
+    minPercent: { type: Number, required: true },
+    maxPercent: { type: Number, required: true },
+    points: { type: Number, required: true }
 });
 const GradeScale = mongoose.model('GradeScale', gradeScaleSchema);
 
 const issueSchema = new mongoose.Schema({
-    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
-    offeringId: { type: mongoose.Schema.Types.ObjectId, ref: 'CourseOffering', required: true },
-    title: { type: String, required: true },
+    student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+    lecturer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    issueType: { type: String, required: true },
+    subject: { type: String, required: true },
     description: { type: String, required: true },
-    status: { type: String, enum: ['open', 'resolved'], default: 'open' },
+    status: { type: String, default: 'pending' },
+    priority: { type: String, default: 'medium' },
+    attachments: [String]
 }, { timestamps: true });
 const Issue = mongoose.model('Issue', issueSchema);
+
+// Middleware to verify token
+const authenticate = (req, res, next) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) return res.status(401).json({ success: false, message: 'No token provided' });
+
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) return res.status(401).json({ success: false, message: 'Invalid token' });
+        req.user = { _id: decoded.id, role: decoded.role };
+        next();
+    });
+};
 
 // --- Routes ---
 
@@ -178,18 +193,6 @@ app.post('/auth/login', async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
-
-// Middleware to verify token
-const authenticate = (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, message: 'No token provided' });
-
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) return res.status(401).json({ success: false, message: 'Invalid token' });
-        req.user = { _id: decoded.id, role: decoded.role };
-        next();
-    });
-};
 
 // Get Offerings
 app.get('/lecturer/offerings', authenticate, async (req, res) => {
@@ -299,7 +302,10 @@ app.post('/lecturer/marks/batch', authenticate, async (req, res) => {
 app.get('/lecturer/offerings/:id/marks', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[DEBUG] Fetching marks for offering: ${id}`);
+
         const marks = await Mark.find({ offeringId: id });
+        console.log(`[DEBUG] Found ${marks.length} marks for offering ${id}`);
 
         res.json(marks.map(m => ({
             studentId: m.studentId,
@@ -325,17 +331,9 @@ app.get('/lecturer/gradescales', authenticate, async (req, res) => {
 // Get Issues for Lecturer
 app.get('/lecturer/issues', authenticate, async (req, res) => {
     try {
-        // 1. Find offerings taught by this lecturer
-        const offerings = await CourseOffering.find({ assignedLecturerIds: req.user._id });
-        const offeringIds = offerings.map(o => o._id);
-
-        // 2. Find issues related to these offerings
-        const issues = await Issue.find({ offeringId: { $in: offeringIds } })
-            .populate('studentId', 'firstName lastName schoolID email')
-            .populate({
-                path: 'offeringId',
-                populate: { path: 'courseId', select: 'code name' }
-            })
+        // Find issues assigned to this lecturer
+        const issues = await Issue.find({ lecturer: req.user._id })
+            .populate('student', 'firstName lastName schoolID email')
             .sort({ createdAt: -1 });
 
         res.json(issues);

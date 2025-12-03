@@ -45,7 +45,7 @@ const CourseResults = () => {
     };
 
     const calculateTotal = (studentId: string) => {
-        const selectedOffering = offerings.find(o => o.id === selectedOfferingId);
+        const selectedOffering = offerings.find((o: any) => o.id === selectedOfferingId);
         if (!selectedOffering?.assessments) return 0;
 
         const validAssessmentIds = selectedOffering.assessments.map((a: any) => a._id);
@@ -58,31 +58,23 @@ const CourseResults = () => {
         return studentMarks.reduce((sum, m) => sum + m.score, 0);
     };
 
-    const DEFAULT_GRADE_SCALES = [
-        { grade: 'A', minScore: 90, maxScore: 100 },
-        { grade: 'A-', minScore: 87, maxScore: 89 },
-        { grade: 'B+', minScore: 84, maxScore: 86 },
-        { grade: 'B', minScore: 80, maxScore: 83 },
-        { grade: 'B-', minScore: 77, maxScore: 79 },
-        { grade: 'C+', minScore: 74, maxScore: 76 },
-        { grade: 'C', minScore: 70, maxScore: 73 },
-        { grade: 'C-', minScore: 67, maxScore: 69 },
-        { grade: 'D+', minScore: 64, maxScore: 66 },
-        { grade: 'D', minScore: 62, maxScore: 63 },
-        { grade: 'D-', minScore: 60, maxScore: 61 },
-        { grade: 'F', minScore: 0, maxScore: 59 }
-    ];
-
     const getGrade = (totalScore: number) => {
         // Handle cases where score might slightly exceed 100 due to bonus or errors, treat as A
         if (totalScore > 100) return 'A';
 
-        const scalesToUse = gradeScales.length > 0 ? gradeScales : DEFAULT_GRADE_SCALES;
-        const scale = scalesToUse.find(s => totalScore >= s.minScore && totalScore <= s.maxScore);
-        return scale ? scale.grade : 'F';
+        console.log('Calculating grade for score:', totalScore);
+        console.log('Available grade scales:', gradeScales);
+
+        const scale = gradeScales.find(s => totalScore >= s.minPercent && totalScore <= s.maxPercent);
+
+        if (!scale) {
+            console.warn('No matching grade scale found for score:', totalScore);
+        }
+
+        return scale ? scale.letter : 'F';
     };
 
-    const selectedOffering = offerings.find(o => o.id === selectedOfferingId);
+    const selectedOffering = offerings.find((o: any) => o.id === selectedOfferingId);
 
     const handlePrint = () => {
         window.print();
@@ -101,7 +93,7 @@ const CourseResults = () => {
                                 <SelectValue placeholder="Select Course" />
                             </SelectTrigger>
                             <SelectContent>
-                                {offerings.map(o => (
+                                {offerings.map((o: any) => (
                                     <SelectItem key={o.id} value={o.id}>
                                         {o.courseCode} - {o.title}
                                     </SelectItem>
@@ -137,7 +129,7 @@ const CourseResults = () => {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {students.map(student => {
+                                        {students.map((student: any) => {
                                             const total = calculateTotal(student.id);
                                             return (
                                                 <TableRow key={student.id}>

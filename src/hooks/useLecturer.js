@@ -163,6 +163,7 @@ export const useMarks = () => {
       const data = await lecturerApi.fetchMarksByOffering(offeringId);
       return { success: true, data };
     } catch (err) {
+      console.error('Error fetching marks:', err);
       setError(err.message);
       return { success: false, error: err.message };
     }

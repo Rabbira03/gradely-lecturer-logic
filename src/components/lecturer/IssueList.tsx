@@ -33,15 +33,15 @@ const IssueList = () => {
                             <div key={issue._id} className="border rounded-lg p-4 flex justify-between items-start bg-white shadow-sm">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-semibold text-lg">{issue.title}</h3>
+                                        <h3 className="font-semibold text-lg">{issue.subject}</h3>
                                         <Badge variant={issue.status === 'resolved' ? 'secondary' : 'destructive'}>
                                             {issue.status}
                                         </Badge>
+                                        <Badge variant="outline">{issue.issueType}</Badge>
                                     </div>
                                     <p className="text-gray-600 mb-2">{issue.description}</p>
                                     <div className="text-sm text-gray-500">
-                                        <p>Student: <span className="font-medium">{issue.studentId?.firstName} {issue.studentId?.lastName}</span> ({issue.studentId?.schoolID})</p>
-                                        <p>Course: <span className="font-medium">{issue.offeringId?.courseId?.code} - {issue.offeringId?.courseId?.name}</span></p>
+                                        <p>Student: <span className="font-medium">{issue.student?.firstName} {issue.student?.lastName}</span> ({issue.student?.schoolID})</p>
                                         <p>Date: {new Date(issue.createdAt).toLocaleDateString()}</p>
                                     </div>
                                 </div>

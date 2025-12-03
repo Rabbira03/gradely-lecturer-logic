@@ -8,10 +8,10 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const gradeScaleSchema = new mongoose.Schema({
-    grade: { type: String, required: true },
-    minScore: { type: Number, required: true },
-    maxScore: { type: Number, required: true },
-    gpa: { type: Number, required: true }
+    letter: { type: String, required: true },
+    minPercent: { type: Number, required: true },
+    maxPercent: { type: Number, required: true },
+    points: { type: Number, required: true }
 });
 const GradeScale = mongoose.model('GradeScale', gradeScaleSchema);
 
@@ -20,22 +20,19 @@ const seedGradeScales = async () => {
         await mongoose.connect(process.env.MONGO_URL);
         console.log('Connected to MongoDB');
 
-        await GradeScale.deleteMany({});
-        console.log('Cleared existing grade scales');
-
         const scales = [
-            { grade: 'A', minScore: 90, maxScore: 100, gpa: 4.0 },
-            { grade: 'A-', minScore: 87, maxScore: 89, gpa: 3.7 },
-            { grade: 'B+', minScore: 84, maxScore: 86, gpa: 3.3 },
-            { grade: 'B', minScore: 80, maxScore: 83, gpa: 3.0 },
-            { grade: 'B-', minScore: 77, maxScore: 79, gpa: 2.7 },
-            { grade: 'C+', minScore: 74, maxScore: 76, gpa: 2.3 },
-            { grade: 'C', minScore: 70, maxScore: 73, gpa: 2.0 },
-            { grade: 'C-', minScore: 67, maxScore: 69, gpa: 1.7 },
-            { grade: 'D+', minScore: 64, maxScore: 66, gpa: 1.3 },
-            { grade: 'D', minScore: 62, maxScore: 63, gpa: 1.0 },
-            { grade: 'D-', minScore: 60, maxScore: 61, gpa: 0.7 },
-            { grade: 'F', minScore: 0, maxScore: 59, gpa: 0.0 }
+            { letter: 'A', minPercent: 90, maxPercent: 100, points: 4.0 },
+            { letter: 'A-', minPercent: 87, maxPercent: 89, points: 3.7 },
+            { letter: 'B+', minPercent: 84, maxPercent: 86, points: 3.3 },
+            { letter: 'B', minPercent: 80, maxPercent: 83, points: 3.0 },
+            { letter: 'B-', minPercent: 77, maxPercent: 79, points: 2.7 },
+            { letter: 'C+', minPercent: 74, maxPercent: 76, points: 2.3 },
+            { letter: 'C', minPercent: 70, maxPercent: 73, points: 2.0 },
+            { letter: 'C-', minPercent: 67, maxPercent: 69, points: 1.7 },
+            { letter: 'D+', minPercent: 64, maxPercent: 66, points: 1.3 },
+            { letter: 'D', minPercent: 62, maxPercent: 63, points: 1.0 },
+            { letter: 'D-', minPercent: 60, maxPercent: 61, points: 0.7 },
+            { letter: 'F', minPercent: 0, maxPercent: 59, points: 0.0 }
         ];
 
         await GradeScale.insertMany(scales);
