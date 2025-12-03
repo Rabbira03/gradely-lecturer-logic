@@ -171,8 +171,49 @@ export const useMarks = () => {
   return { loading, error, submitMarks, fetchMarks, exportCsv };
 };
 
+/**
+ * Hook for managing issues
+ */
+export const useIssues = () => {
+  const [issues, setIssues] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchIssues = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await lecturerApi.fetchIssues();
+      setIssues(data || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const resolveIssue = useCallback(async (issueId) => {
+    try {
+      const result = await lecturerApi.resolveIssue(issueId);
+      if (result.success) {
+        // Update local state
+        setIssues(prev => prev.map(issue =>
+          issue._id === issueId ? { ...issue, status: 'resolved' } : issue
+        ));
+        return true;
+      }
+      return false;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    }
+  }, []);
+
+  return { issues, loading, error, fetchIssues, resolveIssue };
+};
+
 export default {
   useAuth,
   useLecturerData,
   useMarks,
+  useIssues,
 };

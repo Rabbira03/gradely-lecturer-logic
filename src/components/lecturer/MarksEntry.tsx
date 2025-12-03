@@ -8,29 +8,57 @@ import { Label } from '@/components/ui/label';
 
 const MarksEntry = () => {
     const { offerings, students, fetchOfferings, fetchStudents } = useLecturerData();
-    const { submitMarks, loading: submitting, error: submitError } = useMarks();
+    const { submitMarks, fetchMarks, loading: submitting, error: submitError } = useMarks();
 
     const [selectedOffering, setSelectedOffering] = useState('');
     const [selectedStudent, setSelectedStudent] = useState('');
     const [score, setScore] = useState<number | string>(0);
     const [assessmentId, setAssessmentId] = useState('');
+    const [existingMarks, setExistingMarks] = useState<any[]>([]);
 
     useEffect(() => {
         fetchOfferings();
     }, [fetchOfferings]);
 
-    const handleOfferingChange = (offId) => {
+    const handleOfferingChange = async (offId: string) => {
         setSelectedOffering(offId);
         fetchStudents(offId);
         setAssessmentId(''); // Reset assessment when course changes
+
+        // Fetch existing marks for this offering
+        const result = await fetchMarks(offId);
+        if (result.success) {
+            setExistingMarks(result.data);
+        }
     };
+
+    // Update score when student or assessment changes
+    useEffect(() => {
+        if (selectedStudent && assessmentId && existingMarks.length > 0) {
+            const mark = existingMarks.find((m: any) =>
+                m.studentId === selectedStudent && m.assessmentId === assessmentId
+            );
+            if (mark) {
+                setScore(mark.score);
+            } else {
+                setScore(0);
+            }
+        }
+    }, [selectedStudent, assessmentId, existingMarks]);
 
     // Find the selected offering object to get its assessments
     const currentOffering = offerings.find(o => o.id === selectedOffering);
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedOffering || !selectedStudent || !assessmentId) return;
+
+        // Validate score
+        const selectedAssessment = currentOffering?.assessments?.find((a: any) => a._id === assessmentId);
+        if (selectedAssessment && Number(score) > selectedAssessment.maxScore) {
+            alert(`Score exceeds maximum of ${selectedAssessment.maxScore}`);
+            return;
+        }
 
         const result = await submitMarks([{
             offeringId: selectedOffering,
@@ -41,7 +69,11 @@ const MarksEntry = () => {
 
         if (result.success) {
             alert('Marks submitted successfully!');
-            setScore(0);
+            // Refresh marks
+            const refreshResult = await fetchMarks(selectedOffering);
+            if (refreshResult.success) {
+                setExistingMarks(refreshResult.data);
+            }
         } else {
             alert('Failed: ' + result.error);
         }
@@ -101,8 +133,8 @@ const MarksEntry = () => {
                                 <SelectValue placeholder="Select Assessment" />
                             </SelectTrigger>
                             <SelectContent>
-                                {currentOffering?.assessments?.map(a => (
-                                    <SelectItem key={a.id} value={a.id}>
+                                {currentOffering?.assessments?.map((a: any) => (
+                                    <SelectItem key={a._id} value={a._id}>
                                         {a.name} (Max: {a.maxScore})
                                     </SelectItem>
                                 ))}
@@ -117,9 +149,16 @@ const MarksEntry = () => {
                             value={score}
                             onChange={(e) => setScore(e.target.value)}
                             min="0"
-                            max={currentOffering?.assessments?.find(a => a.id === assessmentId)?.maxScore || 100}
+                            max={currentOffering?.assessments?.find((a: any) => a._id === assessmentId)?.maxScore}
                             required
                         />
+                        {assessmentId && (() => {
+                            const selectedAssessment = currentOffering?.assessments?.find((a: any) => a._id === assessmentId);
+                            if (selectedAssessment && Number(score) > selectedAssessment.maxScore) {
+                                return <p className="text-xs text-red-500">Max score is {selectedAssessment.maxScore}</p>;
+                            }
+                            return null;
+                        })()}
                     </div>
 
                     <Button

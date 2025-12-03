@@ -61,7 +61,7 @@ export const PASSING_GRADE = 60;
  * @returns {number} Total marks (0-100)
  */
 export const calculateTotal = (marks) => {
-  const total = 
+  const total =
     (marks.assignment || 0) +
     (marks.quiz || 0) +
     (marks.project || 0) +
@@ -119,7 +119,7 @@ export const calculateAverage = (studentsMarks) => {
 
   const totals = studentsMarks.map(student => calculateTotal(student));
   const sum = totals.reduce((acc, total) => acc + total, 0);
-  
+
   return parseFloat((sum / studentsMarks.length).toFixed(2));
 };
 
@@ -187,7 +187,7 @@ export const calculateClassStatistics = (studentsMarks) => {
  */
 export const getGradeDistribution = (studentsMarks) => {
   const distribution = {};
-  
+
   GRADE_SCALE.forEach(entry => {
     distribution[entry.grade] = 0;
   });
@@ -210,7 +210,7 @@ export const getGradeDistribution = (studentsMarks) => {
 export const calculateAssessmentPercentage = (marks, assessmentType) => {
   const maxMarks = MAX_MARKS[assessmentType];
   if (!maxMarks) return 0;
-  
+
   return parseFloat(((marks / maxMarks) * 100).toFixed(2));
 };
 

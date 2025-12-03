@@ -147,4 +147,12 @@ export default {
     submitMarksBatch,
     fetchMarksByOffering,
     exportMarksCsv,
+    fetchIssues: async () => {
+        return authenticatedFetch('/lecturer/issues');
+    },
+    resolveIssue: async (issueId) => {
+        return authenticatedFetch(`/lecturer/issues/${issueId}/resolve`, {
+            method: 'PUT'
+        });
+    }
 };

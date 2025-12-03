@@ -17,7 +17,7 @@ const StudentList = () => {
         fetchStudents
     } = useLecturerData();
 
-    const { submitMarks, fetchMarks, loading: submitting } = useMarks();
+    const { submitMarks, fetchMarks, exportCsv, loading: submitting } = useMarks();
     const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(null);
     const [marks, setMarks] = useState<{ [key: string]: string }>({});
     const [existingMarks, setExistingMarks] = useState<any[]>([]);
@@ -33,6 +33,7 @@ const StudentList = () => {
         setSelectedAssessmentId(null);
         setMarks({});
         setSuccessMessage(null);
+        setExistingMarks([]); // Clear previous marks immediately
 
         // Fetch existing marks
         const result = await fetchMarks(offeringId);
@@ -59,8 +60,22 @@ const StudentList = () => {
         setMarks(prev => ({ ...prev, [studentId]: value }));
     };
 
+    const selectedOffering = offerings.find((o: any) => o.id === selectedOfferingId);
+    const selectedAssessment = selectedOffering?.assessments?.find((a: any) => a._id === selectedAssessmentId);
+
     const handleSubmitMarks = async () => {
         if (!selectedOfferingId || !selectedAssessmentId) return;
+
+        // Validate scores
+        if (selectedAssessment) {
+            const invalidScores = Object.entries(marks).some(([_, score]) => {
+                return Number(score) > selectedAssessment.maxScore;
+            });
+            if (invalidScores) {
+                alert(`Some scores exceed the maximum of ${selectedAssessment.maxScore}. Please correct them.`);
+                return;
+            }
+        }
 
         const marksData = Object.entries(marks)
             .filter(([_, score]) => score !== '') // Only submit entered marks
@@ -80,13 +95,20 @@ const StudentList = () => {
         if (result.success) {
             setSuccessMessage('Marks submitted successfully!');
             setTimeout(() => setSuccessMessage(null), 3000);
-            setMarks({}); // Optional: clear marks after submit
+            // Refresh marks to ensure we have the latest
+            const refreshResult = await fetchMarks(selectedOfferingId);
+            if (refreshResult.success) {
+                setExistingMarks(refreshResult.data);
+            }
         } else {
             alert('Failed to submit marks: ' + result.error);
         }
     };
 
-    const selectedOffering = offerings.find((o: any) => o.id === selectedOfferingId);
+    const handleExport = async () => {
+        if (!selectedOfferingId) return;
+        await exportCsv(selectedOfferingId);
+    };
 
     return (
         <div className="space-y-6">
@@ -116,13 +138,14 @@ const StudentList = () => {
             {selectedOfferingId && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>2. Enrolled Students ({students.length}) <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">v3 Debug</span></CardTitle>
+                        <div className="flex justify-between items-center">
+                            <CardTitle>2. Enrolled Students ({students.length})</CardTitle>
+                            <Button variant="outline" size="sm" onClick={handleExport}>
+                                Export Results (CSV)
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        {console.log('--- v3 DEBUG ---')}
-                        {console.log('Selected Offering ID:', selectedOfferingId)}
-                        {console.log('Students Array:', students)}
-
                         {/* Assessment Selector */}
                         <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
                             <Label className="mb-2 block font-medium">Select Assessment to Grade</Label>
@@ -141,6 +164,11 @@ const StudentList = () => {
                                     )}
                                 </SelectContent>
                             </Select>
+                            {selectedAssessment && (
+                                <p className="text-sm text-gray-500 mt-2">
+                                    Enter scores out of <strong>{selectedAssessment.maxScore}</strong>.
+                                </p>
+                            )}
                         </div>
 
                         {loading && <p>Loading students...</p>}
@@ -148,29 +176,40 @@ const StudentList = () => {
                         {successMessage && <div className="bg-green-100 text-green-800 p-3 rounded mb-4">{successMessage}</div>}
 
                         <div className="border rounded-md divide-y">
-                            {students.map((student: any) => (
-                                <div key={student.id} className="p-3 hover:bg-gray-50 flex justify-between items-center">
-                                    <div>
-                                        <span className="font-medium block">{student.fullName || student.name}</span>
-                                        <span className="text-gray-500 text-sm">{student.email}</span>
-                                        <span className="text-xs text-gray-400 block mt-1">ID: {student.regNo || student.id}</span>
-                                    </div>
+                            {students.map((student: any) => {
+                                const currentScore = marks[student.id] ? Number(marks[student.id]) : 0;
+                                const isInvalid = selectedAssessment && currentScore > selectedAssessment.maxScore;
 
-                                    {selectedAssessmentId && (
-                                        <div className="flex items-center gap-2">
-                                            <Label className="text-sm text-gray-600">Score:</Label>
-                                            <Input
-                                                type="number"
-                                                className="w-24 text-right"
-                                                placeholder="0"
-                                                min="0"
-                                                value={marks[student.id] || ''}
-                                                onChange={(e) => handleMarkChange(student.id, e.target.value)}
-                                            />
+                                return (
+                                    <div key={student.id} className="p-3 hover:bg-gray-50 flex justify-between items-center">
+                                        <div>
+                                            <span className="font-medium block">{student.fullName || student.name}</span>
+                                            <span className="text-gray-500 text-sm">{student.email}</span>
+                                            <span className="text-xs text-gray-400 block mt-1">ID: {student.regNo || student.id}</span>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+
+                                        {selectedAssessmentId && (
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Label className="text-sm text-gray-600">Score:</Label>
+                                                    <Input
+                                                        type="number"
+                                                        className={`w-24 text-right ${isInvalid ? 'border-red-500 bg-red-50' : ''}`}
+                                                        placeholder={`/ ${selectedAssessment?.maxScore}`}
+                                                        min="0"
+                                                        max={selectedAssessment?.maxScore}
+                                                        value={marks[student.id] || ''}
+                                                        onChange={(e) => handleMarkChange(student.id, e.target.value)}
+                                                    />
+                                                </div>
+                                                {isInvalid && (
+                                                    <span className="text-xs text-red-500">Max is {selectedAssessment.maxScore}</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                             {students.length === 0 && !loading && (
                                 <div className="p-4 text-center text-gray-500">No students enrolled in this course.</div>
                             )}

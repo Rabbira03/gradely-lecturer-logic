@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+// import React from 'react';
 import { useAuth } from '@/hooks/useLecturer';
 import { useNavigate } from 'react-router-dom';
 import StudentList from '@/components/lecturer/StudentList';
 import MarksEntry from '@/components/lecturer/MarksEntry';
+import CourseResults from '@/components/lecturer/CourseResults';
+import IssueList from '@/components/lecturer/IssueList';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('students');
 
     const handleLogout = () => {
         logout();
@@ -48,9 +49,11 @@ const Dashboard = () => {
                 </div>
 
                 <Tabs defaultValue="students" className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-                        <TabsTrigger value="students">Students</TabsTrigger>
-                        <TabsTrigger value="marks">Enter Marks</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-4 max-w-[800px]">
+                        <TabsTrigger value="students">Batch Grading</TabsTrigger>
+                        <TabsTrigger value="marks">Single Entry</TabsTrigger>
+                        <TabsTrigger value="results">View Results</TabsTrigger>
+                        <TabsTrigger value="issues">Issues</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="students" className="space-y-4">
@@ -59,6 +62,14 @@ const Dashboard = () => {
 
                     <TabsContent value="marks" className="space-y-4">
                         <MarksEntry />
+                    </TabsContent>
+
+                    <TabsContent value="results" className="space-y-4">
+                        <CourseResults />
+                    </TabsContent>
+
+                    <TabsContent value="issues" className="space-y-4">
+                        <IssueList />
                     </TabsContent>
                 </Tabs>
             </main>

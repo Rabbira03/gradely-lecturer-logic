@@ -96,6 +96,23 @@ const CourseOffering = mongoose.model('CourseOffering', courseOfferingSchema);
 const Enrollment = mongoose.model('Enrollment', enrollmentSchema);
 const Mark = mongoose.model('Mark', markSchema);
 
+const gradeScaleSchema = new mongoose.Schema({
+    grade: { type: String, required: true },
+    minScore: { type: Number, required: true },
+    maxScore: { type: Number, required: true },
+    gpa: { type: Number, required: true }
+});
+const GradeScale = mongoose.model('GradeScale', gradeScaleSchema);
+
+const issueSchema = new mongoose.Schema({
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+    offeringId: { type: mongoose.Schema.Types.ObjectId, ref: 'CourseOffering', required: true },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    status: { type: String, enum: ['open', 'resolved'], default: 'open' },
+}, { timestamps: true });
+const Issue = mongoose.model('Issue', issueSchema);
+
 // --- Routes ---
 
 // Register
@@ -205,26 +222,34 @@ app.get('/lecturer/offerings', authenticate, async (req, res) => {
 app.get('/lecturer/offerings/:id/students', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
+        console.log(`[DEBUG] Fetching students for offering: ${id}`);
 
         // 1. Get the Offering to find its Course ID
         const offering = await CourseOffering.findById(id);
         if (!offering) {
+            console.log(`[DEBUG] Offering not found: ${id}`);
             return res.status(404).json({ success: false, message: 'Offering not found' });
         }
+
+        const courseId = offering.courseId?._id || offering.courseId;
+        console.log(`[DEBUG] Found offering. Course ID: ${courseId}`);
 
         // 2. Query Enrollments matching EITHER the Offering ID OR the Course ID
         // (This fixes the issue where enrollments were linked to the Course instead of the Offering)
         const enrollments = await Enrollment.find({
             $or: [
                 { offeringId: id },
-                { offeringId: offering.courseId }
+                { offeringId: courseId }
             ]
         })
             .populate('studentId')
             .populate('chosenLecturerId', 'fullName staffNo');
 
+        console.log(`[DEBUG] Found ${enrollments.length} raw enrollments`);
+
         // Filter out orphaned enrollments (where studentId is null)
         const validEnrollments = enrollments.filter(e => e.studentId);
+        console.log(`[DEBUG] Found ${validEnrollments.length} valid enrollments`);
 
         const formattedStudents = validEnrollments.map(enrollment => ({
             id: enrollment.studentId._id,
@@ -283,6 +308,51 @@ app.get('/lecturer/offerings/:id/marks', authenticate, async (req, res) => {
         })));
     } catch (error) {
         console.error('Fetch marks error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+app.get('/lecturer/gradescales', authenticate, async (req, res) => {
+    try {
+        const scales = await GradeScale.find().sort({ minScore: -1 });
+        res.json(scales);
+    } catch (error) {
+        console.error('Fetch gradescales error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Get Issues for Lecturer
+app.get('/lecturer/issues', authenticate, async (req, res) => {
+    try {
+        // 1. Find offerings taught by this lecturer
+        const offerings = await CourseOffering.find({ assignedLecturerIds: req.user._id });
+        const offeringIds = offerings.map(o => o._id);
+
+        // 2. Find issues related to these offerings
+        const issues = await Issue.find({ offeringId: { $in: offeringIds } })
+            .populate('studentId', 'firstName lastName schoolID email')
+            .populate({
+                path: 'offeringId',
+                populate: { path: 'courseId', select: 'code name' }
+            })
+            .sort({ createdAt: -1 });
+
+        res.json(issues);
+    } catch (error) {
+        console.error('Fetch issues error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
+// Resolve Issue
+app.put('/lecturer/issues/:id/resolve', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const issue = await Issue.findByIdAndUpdate(id, { status: 'resolved' }, { new: true });
+        res.json({ success: true, data: issue });
+    } catch (error) {
+        console.error('Resolve issue error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
 });
