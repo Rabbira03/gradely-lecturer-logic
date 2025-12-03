@@ -158,7 +158,17 @@ export const useMarks = () => {
     }
   }, []);
 
-  return { loading, error, submitMarks, exportCsv };
+  const fetchMarks = useCallback(async (offeringId) => {
+    try {
+      const data = await lecturerApi.fetchMarksByOffering(offeringId);
+      return { success: true, data };
+    } catch (err) {
+      setError(err.message);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  return { loading, error, submitMarks, fetchMarks, exportCsv };
 };
 
 export default {

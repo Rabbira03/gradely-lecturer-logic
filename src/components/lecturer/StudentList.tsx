@@ -17,9 +17,10 @@ const StudentList = () => {
         fetchStudents
     } = useLecturerData();
 
-    const { submitMarks, loading: submitting } = useMarks();
+    const { submitMarks, fetchMarks, loading: submitting } = useMarks();
     const [selectedAssessmentId, setSelectedAssessmentId] = useState<string | null>(null);
     const [marks, setMarks] = useState<{ [key: string]: string }>({});
+    const [existingMarks, setExistingMarks] = useState<any[]>([]);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     useEffect(() => {
@@ -27,12 +28,32 @@ const StudentList = () => {
     }, [fetchOfferings]);
 
     // Reset state when offering changes
-    const handleOfferingChange = (offeringId: string) => {
+    const handleOfferingChange = async (offeringId: string) => {
         fetchStudents(offeringId);
         setSelectedAssessmentId(null);
         setMarks({});
         setSuccessMessage(null);
+
+        // Fetch existing marks
+        const result = await fetchMarks(offeringId);
+        if (result.success) {
+            setExistingMarks(result.data);
+        }
     };
+
+    // Update inputs when assessment changes
+    useEffect(() => {
+        if (selectedAssessmentId && existingMarks.length > 0) {
+            const assessmentMarks = existingMarks.filter((m: any) => m.assessmentId === selectedAssessmentId);
+            const newMarks: { [key: string]: string } = {};
+            assessmentMarks.forEach((m: any) => {
+                newMarks[m.studentId] = m.score.toString();
+            });
+            setMarks(newMarks);
+        } else {
+            setMarks({});
+        }
+    }, [selectedAssessmentId, existingMarks]);
 
     const handleMarkChange = (studentId: string, value: string) => {
         setMarks(prev => ({ ...prev, [studentId]: value }));

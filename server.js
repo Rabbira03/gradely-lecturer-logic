@@ -270,6 +270,23 @@ app.post('/lecturer/marks/batch', authenticate, async (req, res) => {
     }
 });
 
+// Get Marks for Offering
+app.get('/lecturer/offerings/:id/marks', authenticate, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const marks = await Mark.find({ offeringId: id });
+
+        res.json(marks.map(m => ({
+            studentId: m.studentId,
+            assessmentId: m.assessmentId,
+            score: m.score
+        })));
+    } catch (error) {
+        console.error('Fetch marks error:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
+
 
 // Start Server
 app.listen(PORT, () => {

@@ -32,23 +32,19 @@ const run = async () => {
         console.log(`Found ${offerings.length} offerings.`);
 
         for (const offering of offerings) {
-            if (offering.assessments.length === 0) {
-                console.log(`Adding assessments to offering ${offering._id}...`);
-                offering.assessments.push({
-                    name: 'Midterm Exam',
-                    weight: 30,
-                    maxScore: 100
-                });
-                offering.assessments.push({
-                    name: 'Final Exam',
-                    weight: 70,
-                    maxScore: 100
-                });
-                await offering.save();
-                console.log('  Saved.');
-            } else {
-                console.log(`Offering ${offering._id} already has assessments.`);
-            }
+            console.log(`Updating assessments for offering ${offering._id}...`);
+
+            // Overwrite assessments with the correct structure
+            offering.assessments = [
+                { name: 'Assignment', weight: 10, maxScore: 10 },
+                { name: 'Quiz', weight: 15, maxScore: 15 },
+                { name: 'Project', weight: 25, maxScore: 25 },
+                { name: 'Midsem', weight: 20, maxScore: 20 },
+                { name: 'Final', weight: 30, maxScore: 30 }
+            ];
+
+            await offering.save();
+            console.log('  Saved.');
         }
 
         console.log('Done!');

@@ -116,6 +116,13 @@ export const submitMarksBatch = async (marks) => {
 };
 
 /**
+ * Get marks for a specific offering
+ */
+export const fetchMarksByOffering = async (offeringId) => {
+    return authenticatedFetch(`/lecturer/offerings/${offeringId}/marks`);
+};
+
+/**
  * Export marks to CSV
  */
 export const exportMarksCsv = async (offeringId) => {
@@ -138,5 +145,6 @@ export default {
     fetchLecturerOfferings,
     fetchStudentsByOffering,
     submitMarksBatch,
+    fetchMarksByOffering,
     exportMarksCsv,
 };

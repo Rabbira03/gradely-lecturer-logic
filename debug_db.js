@@ -71,6 +71,17 @@ const run = async () => {
             });
         }
 
+        // 5. Inspect Marks
+        console.log('\n--- Marks Inspection ---');
+        const marks = await db.collection('marks').find({}).limit(5).toArray();
+        if (marks.length === 0) {
+            console.log('No marks found.');
+        } else {
+            marks.forEach((m, i) => {
+                console.log(`Mark ${i + 1}:`, JSON.stringify(m, null, 2));
+            });
+        }
+
     } catch (error) {
         console.error('Error:', error);
     } finally {
